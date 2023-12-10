@@ -11,7 +11,6 @@ Other improvements:
 
 ![Image of SimCLR Arch](https://sthalles.github.io/assets/contrastive-self-supervised/cover.png)
 
-### See also [PyTorch Implementation for BYOL - Bootstrap Your Own Latent: A New Approach to Self-Supervised Learning](https://github.com/sthalles/PyTorch-BYOL).
 
 ## Installation
 
