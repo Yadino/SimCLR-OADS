@@ -1,6 +1,6 @@
 import os
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 import pandas as pd
 from skimage import io
 
@@ -26,6 +26,7 @@ class OADSDataset(Dataset):
         self.transform = transform
 
         if split:
+            assert split in ['train', 'test', 'val']
             self.file_names = self.file_names.loc[self.file_names['split'] == split]
             self.file_names.reset_index(drop=True)
 
@@ -38,6 +39,8 @@ class OADSDataset(Dataset):
 
         img_name = os.path.join(self.root_dir,
                                 self.file_names.iloc[idx, 0])
+
+        # TODO: add "with" if necessary
         image = io.imread(img_name)
 
         if self.transform:

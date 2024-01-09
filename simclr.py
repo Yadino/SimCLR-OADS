@@ -50,7 +50,7 @@ class SimCLR(object):
         # select and combine multiple positives
         positives = similarity_matrix[labels.bool()].view(labels.shape[0], -1)
 
-        # select only the negatives the negatives
+        # select only the negatives
         negatives = similarity_matrix[~labels.bool()].view(similarity_matrix.shape[0], -1)
 
         logits = torch.cat([positives, negatives], dim=1)
@@ -111,11 +111,11 @@ class SimCLR(object):
             # warmup for the first 10 epochs
             if epoch_counter >= 10:
                 self.scheduler.step()
-            logging.debug(f"Epoch: {epoch_counter}\tLoss: {loss}\tTop1 accuracy: {top1[0]}")
+            logging.debug(f"Epoch: {(start_epochs + epoch_counter)}\tLoss: {loss}\tTop1 accuracy: {top1[0]}")
 
         logging.info("Training has finished.")
         # save model checkpoints
-        checkpoint_name = 'checkpoint_{:04d}.pth.tar'.format(self.args.epochs)
+        checkpoint_name = 'checkpoint_{:04d}.pth.tar'.format(end_epochs)
         save_checkpoint({
             'epoch': self.args.epochs,
             'arch': self.args.arch,

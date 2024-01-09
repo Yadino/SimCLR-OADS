@@ -22,7 +22,6 @@ def load_checkpoint(model, filepath):
         raise InvalidCheckpointPath()
 
 
-
 def save_config_file(model_checkpoints_folder, args):
     if not os.path.exists(model_checkpoints_folder):
         os.makedirs(model_checkpoints_folder)
