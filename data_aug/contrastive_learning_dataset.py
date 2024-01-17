@@ -12,24 +12,31 @@ class ContrastiveLearningDataset:
         self.csv_file = csv_file
 
     @staticmethod
-    def get_simclr_pipeline_transform(size, s=1):
-        """Return a set of data augmentation transformations as described in the SimCLR paper."""
-        color_jitter = transforms.ColorJitter(0.8 * s, 0.8 * s, 0.8 * s, 0.2 * s)
-        data_transforms = transforms.Compose([transforms.RandomResizedCrop(size=size),
-                                              transforms.RandomHorizontalFlip(),
-                                              transforms.RandomApply([color_jitter], p=0.8),
-                                              transforms.RandomGrayscale(p=0.2),
-                                              GaussianBlur(kernel_size=int(0.1 * size)),
-                                              transforms.ToTensor()])
-        return data_transforms
-
-    @staticmethod
     def get_simclr_OADS_transform(size, s=1):
         """Return a set of data augmentation transformations as described in the SimCLR paper,
         YO:: slight changes applied (RandomResizedCrop -> RandomCrop)."""
         color_jitter = transforms.ColorJitter(0.8 * s, 0.8 * s, 0.8 * s, 0.2 * s)
+
+        # RGB normalization "magic" values
+        mean = [0.3410, 0.3123, 0.2787]
+        std = [0.2362, 0.2252, 0.2162]
+
         data_transforms = transforms.Compose([transforms.ToPILImage(),
                                               transforms.RandomCrop(size=size),
+                                              transforms.RandomHorizontalFlip(),
+                                              transforms.RandomApply([color_jitter], p=0.8),
+                                              transforms.RandomGrayscale(p=0.2),
+                                              GaussianBlur(kernel_size=int(0.1 * size)),
+                                              transforms.ToTensor(),
+                                              # YO:: Normalize RGB values
+                                              transforms.Normalize(mean, std)])
+        return data_transforms
+
+    @staticmethod
+    def get_simclr_pipeline_transform(size, s=1):
+        """Return a set of data augmentation transformations as described in the SimCLR paper."""
+        color_jitter = transforms.ColorJitter(0.8 * s, 0.8 * s, 0.8 * s, 0.2 * s)
+        data_transforms = transforms.Compose([transforms.RandomResizedCrop(size=size),
                                               transforms.RandomHorizontalFlip(),
                                               transforms.RandomApply([color_jitter], p=0.8),
                                               transforms.RandomGrayscale(p=0.2),
@@ -51,10 +58,16 @@ class ContrastiveLearningDataset:
                                                           download=True),
 
                           'OADS': lambda: OADSDataset(root_dir=self.root_folder,
-                                                      csv_file=self.csv_file,
+                                                      csv_file=self.csv_file, split='train',
                                                       transform=ContrastiveLearningViewGenerator(
                                                           self.get_simclr_OADS_transform(400),
                                                           n_views)),
+
+                          'OADS_val': lambda: OADSDataset(root_dir=self.root_folder,
+                                                          csv_file=self.csv_file, split='val',
+                                                          transform=ContrastiveLearningViewGenerator(
+                                                              self.get_simclr_OADS_transform(400),
+                                                              n_views)),
                           # YO: added imagenet
                           # YO:: TODO:: check if this works after downloading imagenet
                           #      https://huggingface.co/datasets/imagenet-1k/tree/main/data

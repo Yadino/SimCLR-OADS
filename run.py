@@ -12,10 +12,18 @@ model_names = sorted(name for name in models.__dict__
 
 parser = argparse.ArgumentParser(description='PyTorch SimCLR')
 #parser.add_argument('-data', metavar='DIR', default='./datasets',
-parser.add_argument('-data', metavar='DIR', default=r"C:\Users\YO\OneDrive - UvA\ARW",
+
+# ARW dataset
+#parser.add_argument('-data', metavar='DIR', default=r"C:\Users\YO\OneDrive - UvA\ARW",
+#                                        help='path to dataset')
+#parser.add_argument('-data-csv', metavar='CSV', default=r"C:\Users\YO\OneDrive - UvA\ARW\OADS_file_names.csv",
+#                                        help='path to csv file with dataset file names')
+
+# for cropped images
+parser.add_argument('-data', metavar='DIR', default=r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\Practice\cropped_images\png",
                                         help='path to dataset')
 
-parser.add_argument('-data-csv', metavar='CSV', default=r"C:\Users\YO\OneDrive - UvA\ARW\OADS_file_names.csv",
+parser.add_argument('-data-csv', metavar='CSV', default=r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\Practice\cropped_images\png\filenames.csv",
                                         help='path to csv file with dataset file names')
 
 parser.add_argument('-ckpt', default=None, type=str, metavar='CKPT',
@@ -55,13 +63,15 @@ parser.add_argument('--fp16-precision', action='store_true',
 
 parser.add_argument('--out_dim', default=128, type=int,
                     help='feature dimension (default: 128)')
-parser.add_argument('--log-every-n-steps', default=100, type=int,
+parser.add_argument('--log-every-n-steps', default=10, type=int,
                     help='Log every n steps')
 parser.add_argument('--temperature', default=0.07, type=float,
                     help='softmax temperature (default: 0.07)')
 parser.add_argument('--n-views', default=2, type=int, metavar='N',
                     help='Number of views for contrastive learning training.')
 parser.add_argument('--gpu-index', default=0, type=int, help='Gpu index.')
+parser.add_argument('--validation-interval', default=1, type=int,
+                    help='How often to perform validation during training')
 
 
 def main():
@@ -84,6 +94,15 @@ def main():
         train_dataset, batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True, drop_last=True)
 
+    # Add validation datasets for OADS
+    if args.dataset_name == 'OADS':
+        val_dataset = dataset.get_dataset('OADS_val', args.n_views)
+        val_loader = torch.utils.data.DataLoader(
+            val_dataset, batch_size=args.batch_size, shuffle=True,
+            num_workers=args.workers, pin_memory=True, drop_last=True)
+    else:
+        val_loader = None
+
     model = ResNetSimCLR(base_model=args.arch, out_dim=args.out_dim)
 
     optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=args.weight_decay)
@@ -94,7 +113,7 @@ def main():
     #  It’s a no-op if the 'gpu_index' argument is a negative integer or None.
     with torch.cuda.device(args.gpu_index):
         simclr = SimCLR(model=model, optimizer=optimizer, scheduler=scheduler, args=args)
-        simclr.train(train_loader)
+        simclr.train(train_loader, val_loader)
 
 
 if __name__ == "__main__":

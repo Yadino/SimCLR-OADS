@@ -27,10 +27,11 @@ parts_w = 3
 
 
 def main():
-    #img_name = "fffdf8b230d0e2c0.ARW"
 
+    # Read file names
     file_names = pd.read_csv(csv_path)
 
+    # Iterate over file name table and crop
     for idx, row in file_names.iterrows():
         img_name = row["filename"]
         img = load_image(img_name)

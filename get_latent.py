@@ -120,7 +120,7 @@ model = create_feature_extractor(model, return_nodes)
 out = model(images)
 
 #%%
-print(out)
+#print(out)
 
 # Visualize these TODO:: (improve)
 #npimg = img.numpy()
@@ -151,6 +151,7 @@ for k in range(k_count):
     k_dict[k] = nonz_count
 
     #if(nonz_count > 0):
+    # Can print here or whatever
 
 
 # A dictionary of all the kernels which aren't all zero, their index and the number of nonzero values (out of 13*13=169)
@@ -163,6 +164,21 @@ len(k_dict_nonzero)
 
 l4 = out['layer4']
 l4_flat = torch.flatten(l4, start_dim=1)
+
+
+#%% PCA
+
+from sklearn.decomposition import PCA
+
+
+x = l4_flat.detach().numpy() #.reshape(-1, 1)
+
+# TODO: make it 100
+pca = PCA(4)
+pca.fit(x)
+
+print(pca.explained_variance_ratio_)
+print(pca.singular_values_)
 
 
 #%%

@@ -1,7 +1,6 @@
 import logging
 import os
-import sys
-
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.cuda.amp import GradScaler, autocast
@@ -59,14 +58,39 @@ class SimCLR(object):
         logits = logits / self.args.temperature
         return logits, labels
 
-    def train(self, train_loader):
+    def validate(self, val_loader):
+        self.model.eval()
+        val_loss = 0.0
+        correct = 0
+        total = 0
+
+        with torch.no_grad(), autocast(enabled=self.args.fp16_precision):
+            for images in tqdm(val_loader, desc="Validation"):
+                images = torch.cat(images, dim=0)
+                images = images.to(self.args.device)
+                features = self.model(images)
+                logits, labels = self.info_nce_loss(features)  # Update this line if needed
+                loss = self.criterion(logits, labels)
+
+                val_loss += loss.item()
+                _, predicted = logits.max(1)
+                total += labels.size(0)
+                correct += predicted.eq(labels).sum().item()
+
+        val_accuracy = correct / total
+        val_loss /= len(val_loader)
+
+        self.model.train()
+        return val_loss, val_accuracy
+
+    def train(self, train_loader, val_loader=None):
 
         scaler = GradScaler(enabled=self.args.fp16_precision)
 
         # save config file
         save_config_file(self.writer.log_dir, self.args)
 
-        n_iter, start_epochs, end_epochs = 0, 0, self.args.epochs
+        n_iter, start_epochs, end_epochs, best_val_loss = 0, 0, self.args.epochs, np.inf
 
         if self.args.ckpt:
             self.model, start_epochs = load_checkpoint(self.model, self.args.ckpt)
@@ -111,7 +135,32 @@ class SimCLR(object):
             # warmup for the first 10 epochs
             if epoch_counter >= 10:
                 self.scheduler.step()
+
             logging.debug(f"Epoch: {(start_epochs + epoch_counter)}\tLoss: {loss}\tTop1 accuracy: {top1[0]}")
+
+            # Validation on val dataset every x epochs
+            if epoch_counter >= 0 and epoch_counter % self.args.validation_interval == 0 and val_loader is not None:
+                # Perform validation using info_nce_loss
+                val_loss, val_accuracy = self.validate(val_loader)
+                is_best = False
+
+                # Log and save results
+                self.writer.add_scalar('val_loss', val_loss, global_step=n_iter)
+                self.writer.add_scalar('is_best', is_best, global_step=n_iter)
+                #self.writer.add_scalar('val_accuracy', val_accuracy, global_step=n_iter)
+
+                # Save checkpoint if the model performs better
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    is_best = True
+                    save_checkpoint({
+                        'epoch': (start_epochs + epoch_counter),
+                        'arch': self.args.arch,
+                        'state_dict': self.model.state_dict(),
+                        'optimizer': self.optimizer.state_dict(),
+                    }, is_best=False, filename=os.path.join(self.writer.log_dir, f"best_checkpoint.pth.tar"))
+
+                logging.debug(f"\t\tValidation Loss: {val_loss}\t is best (so far): {is_best}")
 
         logging.info("Training has finished.")
         # save model checkpoints
