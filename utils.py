@@ -11,13 +11,15 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
         shutil.copyfile(filename, 'model_best.pth.tar')
 
 
-def load_checkpoint(model, filepath):
+def load_checkpoint(model, optimizer, scheduler, filepath):
     try:
         assert os.path.exists(filepath)
         ckpt = torch.load(filepath)
         model.load_state_dict(ckpt['state_dict'])
+        optimizer.load_state_dict(ckpt['optimizer'])
+        scheduler.load_state_dict(ckpt['scheduler'])
         epoch = ckpt['epoch']
-        return model, epoch
+        return model, optimizer, scheduler, epoch
     except Exception:
         raise InvalidCheckpointPath()
 

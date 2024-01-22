@@ -93,7 +93,8 @@ class SimCLR(object):
         n_iter, start_epochs, end_epochs, best_val_loss = 0, 0, self.args.epochs, np.inf
 
         if self.args.ckpt:
-            self.model, start_epochs = load_checkpoint(self.model, self.args.ckpt)
+            self.model, self.optimizer, self.scheduler, start_epochs = load_checkpoint(self.model, self.optimizer,
+                                                                                       self.scheduler, self.args.ckpt)
             end_epochs = end_epochs + start_epochs
 
 
@@ -133,7 +134,7 @@ class SimCLR(object):
                 n_iter += 1
 
             # warmup for the first 10 epochs
-            if epoch_counter >= 10:
+            if start_epochs + epoch_counter >= 10:
                 self.scheduler.step()
 
             logging.debug(f"Epoch: {(start_epochs + epoch_counter)}\tLoss: {loss}\tTop1 accuracy: {top1[0]}")
@@ -147,7 +148,7 @@ class SimCLR(object):
                 # Log and save results
                 self.writer.add_scalar('val_loss', val_loss, global_step=n_iter)
                 self.writer.add_scalar('is_best', is_best, global_step=n_iter)
-                #self.writer.add_scalar('val_accuracy', val_accuracy, global_step=n_iter)
+                self.writer.add_scalar('val_accuracy', val_accuracy, global_step=n_iter)
 
                 # Save checkpoint if the model performs better
                 if val_loss < best_val_loss:
@@ -158,9 +159,11 @@ class SimCLR(object):
                         'arch': self.args.arch,
                         'state_dict': self.model.state_dict(),
                         'optimizer': self.optimizer.state_dict(),
+                        'scheduler': self.scheduler.state_dict(),
                     }, is_best=False, filename=os.path.join(self.writer.log_dir, f"best_checkpoint.pth.tar"))
 
-                logging.debug(f"\t\tValidation Loss: {val_loss}\t is best (so far): {is_best}")
+                logging.debug(f"\t\tValidation loss: {val_loss}\t Validation accuracy: {val_accuracy}"
+                              f"\tis best (so far): {is_best}")
 
         logging.info("Training has finished.")
         # save model checkpoints
@@ -170,5 +173,6 @@ class SimCLR(object):
             'arch': self.args.arch,
             'state_dict': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
+            'scheduler': self.scheduler.state_dict(),
         }, is_best=False, filename=os.path.join(self.writer.log_dir, checkpoint_name))
         logging.info(f"Model checkpoint and metadata has been saved at {self.writer.log_dir}.")
