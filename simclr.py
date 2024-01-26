@@ -11,10 +11,10 @@ from utils import save_config_file, accuracy, save_checkpoint, load_checkpoint
 
 torch.manual_seed(0)
 
-# Remove annoying logs from the TIFF library
+# Remove annoying logs from the PIL library
 logging.getLogger("PIL.TiffImagePlugin").propagate = False
+logging.getLogger("PIL.PngImagePlugin").propagate = False
 logging.getLogger("PIL.Image").propagate = False
-
 
 class SimCLR(object):
 
@@ -95,7 +95,7 @@ class SimCLR(object):
         if self.args.ckpt:
             self.model, self.optimizer, self.scheduler, start_epochs = load_checkpoint(self.model, self.optimizer,
                                                                                        self.scheduler, self.args.ckpt)
-            end_epochs = end_epochs + start_epochs
+            end_epochs += start_epochs
 
 
         logging.info(f"Start SimCLR training for {self.args.epochs} epochs.")
@@ -134,10 +134,10 @@ class SimCLR(object):
                 n_iter += 1
 
             # warmup for the first 10 epochs
-            if start_epochs + epoch_counter >= 10:
+            if epoch_counter >= 10:
                 self.scheduler.step()
 
-            logging.debug(f"Epoch: {(start_epochs + epoch_counter)}\tLoss: {loss}\tTop1 accuracy: {top1[0]}")
+            logging.debug(f"Epoch: {epoch_counter}\tLoss: {loss}\tTop1 accuracy: {top1[0]}")
 
             # Validation on val dataset every x epochs
             if epoch_counter >= 0 and epoch_counter % self.args.validation_interval == 0 and val_loader is not None:
@@ -155,7 +155,7 @@ class SimCLR(object):
                     best_val_loss = val_loss
                     is_best = True
                     save_checkpoint({
-                        'epoch': (start_epochs + epoch_counter),
+                        'epoch': epoch_counter,
                         'arch': self.args.arch,
                         'state_dict': self.model.state_dict(),
                         'optimizer': self.optimizer.state_dict(),
@@ -169,7 +169,7 @@ class SimCLR(object):
         # save model checkpoints
         checkpoint_name = 'checkpoint_{:04d}.pth.tar'.format(end_epochs)
         save_checkpoint({
-            'epoch': self.args.epochs,
+            'epoch': end_epochs,
             'arch': self.args.arch,
             'state_dict': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),

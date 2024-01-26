@@ -20,17 +20,17 @@ parser = argparse.ArgumentParser(description='PyTorch SimCLR')
 #                                        help='path to csv file with dataset file names')
 
 # for cropped images
-parser.add_argument('-data', metavar='DIR', default=r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\Practice\cropped_images\png",
+parser.add_argument('--data', metavar='DIR', default=r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\Practice\cropped_images\png",
                                         help='path to dataset')
 
-parser.add_argument('-data-csv', metavar='CSV', default=r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\Practice\cropped_images\png\filenames.csv",
+parser.add_argument('--data-csv', metavar='CSV', default=r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\Practice\cropped_images\png\filenames.csv",
                                         help='path to csv file with dataset file names')
 
-parser.add_argument('-ckpt', default=None, type=str, metavar='CKPT',
+parser.add_argument('--ckpt', default=None, type=str, metavar='CKPT',
                     help='a checkpoint to resume training from')
 
 # YO:: changed default from stl10
-parser.add_argument('-dataset-name', default='OADS',
+parser.add_argument('--dataset-name', default='OADS',
                     help='dataset name', choices=['stl10', 'cifar10', 'imagenet', 'OADS'])
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet50',
                     choices=model_names,
