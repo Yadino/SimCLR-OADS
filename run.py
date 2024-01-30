@@ -4,7 +4,9 @@ import torch.backends.cudnn as cudnn
 from torchvision import models
 from data_aug.contrastive_learning_dataset import ContrastiveLearningDataset
 from models.resnet_simclr import ResNetSimCLR
+from models.alexnet_simclr import AlexNetSimCLR
 from simclr import SimCLR
+from exceptions.exceptions import InvalidBackboneError
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -32,11 +34,11 @@ parser.add_argument('--ckpt', default=None, type=str, metavar='CKPT',
 # YO:: changed default from stl10
 parser.add_argument('--dataset-name', default='OADS',
                     help='dataset name', choices=['stl10', 'cifar10', 'imagenet', 'OADS'])
-parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet50',
+parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18',
                     choices=model_names,
                     help='model architecture: ' +
                          ' | '.join(model_names) +
-                         ' (default: resnet50)')
+                         ' (default: resnet18)')
 parser.add_argument('-j', '--workers', default=12, type=int, metavar='N',
                     help='number of data loading workers (default: 32)')
 parser.add_argument('--epochs', default=200, type=int, metavar='N',
@@ -103,7 +105,14 @@ def main():
     else:
         val_loader = None
 
-    model = ResNetSimCLR(base_model=args.arch, out_dim=args.out_dim)
+
+    # YO:: initialize the right model
+    if "resnet" in args.arch:
+        model = ResNetSimCLR(base_model=args.arch, out_dim=args.out_dim)
+    elif args.arch == "alexnet":
+        model = AlexNetSimCLR(out_dim=args.out_dim)
+    else:
+        raise InvalidBackboneError
 
     optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=args.weight_decay)
 

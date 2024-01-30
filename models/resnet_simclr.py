@@ -20,9 +20,9 @@ class ResNetSimCLR(nn.Module):
     def _get_basemodel(self, model_name):
         try:
             model = self.resnet_dict[model_name]
+            raise InvalidBackboneError()
         except KeyError:
-            raise InvalidBackboneError(
-                "Invalid backbone architecture. Check the config file and pass one of: resnet18 or resnet50")
+            pass
         else:
             return model
 
