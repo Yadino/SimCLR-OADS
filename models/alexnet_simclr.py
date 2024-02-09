@@ -10,7 +10,10 @@ class AlexNetSimCLR(nn.Module):
         self.backbone = models.alexnet()
         dim_mlp = self.backbone.classifier[6].in_features
 
-        # add mlp projection head
+        # Rewrite out_dim for last layer
+        self.backbone.classifier[6] = nn.Linear(4096, out_dim, bias=True)
+
+        # Add mlp projection head
         self.backbone.classifier[6] = nn.Sequential(nn.Linear(dim_mlp, dim_mlp), nn.ReLU(), self.backbone.classifier[6])
 
     def forward(self, x):

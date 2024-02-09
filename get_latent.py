@@ -69,7 +69,7 @@ testloader = torch.utils.data.DataLoader(testset, batch_size=batch_size,
                                          shuffle=False, num_workers=2)
 
 
-#%% def func
+# def func
 def imshow(img):
     #img = img / 2 + 0.5     # unnormalize
     npimg = img.numpy()
@@ -90,7 +90,7 @@ for im in images:
     imshow(torchvision.utils.make_grid(im))
 
 
-#%% get latents
+# get latents
 from torchvision.models import resnet50
 from torchvision.models.feature_extraction import get_graph_node_names
 from torchvision.models.feature_extraction import create_feature_extractor
@@ -176,6 +176,7 @@ x = l4_flat.detach().numpy() #.reshape(-1, 1)
 # TODO: make it 100
 pca = PCA(4)
 pca.fit(x)
+new_x = pca.transform(x)
 
 print(pca.explained_variance_ratio_)
 print(pca.singular_values_)

@@ -20,9 +20,8 @@ class ResNetSimCLR(nn.Module):
     def _get_basemodel(self, model_name):
         try:
             model = self.resnet_dict[model_name]
-            raise InvalidBackboneError()
         except KeyError:
-            pass
+            raise InvalidBackboneError()
         else:
             return model
 
