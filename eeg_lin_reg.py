@@ -1,4 +1,6 @@
-# %%################# IMPORTS
+#%% V2
+
+# imports
 import os
 import datetime
 import numpy as np
@@ -11,12 +13,10 @@ from torchvision import transforms
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from scipy.stats import pearsonr
-
 from sklearn.metrics import r2_score
 import tqdm
 from scipy.stats import zscore
 import pandas as pd
-from mne import read_epochs
 # YO::
 from OADSDataset import OADSDataset
 from models.resnet_simclr import ResNetSimCLR
@@ -28,6 +28,8 @@ from models.alexnet_simclr import AlexNetSimCLR
 original_sampling_rate = 1024  # Hz
 downsampling_factor = 4
 
+# Choose subjects to run on
+subjects = range(5, 36)
 ######################## Set paths, number of workers/cores, GPU/CPU access
 
 gpu_name = 'cuda:0'
@@ -53,7 +55,7 @@ eeg_dir = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship
 dataset_root_dir = r"C:\Users\YO\OneDrive - UvA\ARW"
 # dataset_csv_file = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\Practice\cropped_images\png\filenames.csv"
 
-
+# TODO: save this info
 checkpoint_path = (r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\Model srcs\checkpoints\runs resnet18\Jan29_19-06-56_node436\checkpoint_0200.pth.tar")
 
 model_type = 'resnet18'
@@ -135,6 +137,8 @@ def creat_output_dir(output_dir):
 
 
 def plot_rs(data, ylabel="", title="", downsampling_factor=downsampling_factor):
+    """Plot either an r2 or an r graph with a -100 to 400ms timeline"""
+
     # Length of the downsampled data
     downsampled_num_points = len(data)
 
@@ -179,11 +183,11 @@ all_filenames = sorted(set(all_filenames))
 if model_type == 'resnet50':
     return_nodes = {
         # node_name: user-specified key for output dict
-        # 'layer1.2.relu_2': 'layer1',
-        # 'layer2.3.relu_2': 'layer2',
-        # 'layer3.5.relu_2': 'layer3',
-        # 'layer4.2.relu_2': 'layer4',
-        'flatten': 'feature',
+        'backbone.layer1.2.relu_2': 'layer1',
+        'backbone.layer2.3.relu_2': 'layer2',
+        'backbone.layer3.5.relu_2': 'layer3',
+        'backbone.layer4.2.relu_2': 'layer4',
+        'backbone.fc.2': 'fc2',
     }
     model = ResNetSimCLR('resnet50', out_dim)
 
@@ -241,7 +245,7 @@ def main():
     # Create an output dir for current run
     datetime_dir = creat_output_dir(output_dir)
 
-    for sub in range(9, 10):
+    for sub in subjects:
         # Make dir
         subject_dir = os.path.join(datetime_dir, f"sub_{sub}")
         os.makedirs(subject_dir, exist_ok=True)
@@ -277,6 +281,7 @@ def main():
 
         # Get test features - returns a dict with chosen layers, for each layer an array with indices
         #   corresponding to the images presented to a subject
+        print("\t= Extracting features")
         all_activations_train = record_activations(train_loader, model, return_nodes, device)
         all_activations_test = record_activations(test_loader, model, return_nodes, device)
 
@@ -290,16 +295,19 @@ def main():
             print(f"\tLayer: {layer_name}")
 
 
-            #################### TRAIN
+            # Fit and transform TRAIN data
             # The layer representations for the train images
             layer_ac_train = all_activations_train[layer_name]
-            x = flatten_layer(layer_ac_train)
-
+            train_x = flatten_layer(layer_ac_train)
             # Get PCA matrix
             pca = PCA(100)
-            og_x = x    # save x just in case...
+            train_x = pca.fit_transform(train_x)
 
-            x = pca.fit_transform(x)
+            # Transform TEST data
+            layer_ac_test = all_activations_test[layer_name]
+            test_x = flatten_layer(layer_ac_test)
+            # Apply PCA transformation from the train data
+            test_x = pca.transform(test_x)
 
             ############ linear regression #############
 
@@ -308,7 +316,7 @@ def main():
 
             # Loop over selected channels
             for channel in selected_channel_indexes:
-
+                # get name from idx
                 channel_name = channel_order[channel]
                 # Make a new dir for the channel
                 channel_dir = os.path.join(layer_dir, channel_name)
@@ -318,100 +326,70 @@ def main():
                 train_r2s = []
                 train_betas = []
                 train_lin_regs = []
+                test_rs = []
+                test_r2s = []
 
                 # Iterate over timepoints
                 #for timepoint in range(n_timepoints):
                 # Select every 4th point, AKA downsample to 256Hz
                 for timepoint in range(0, n_timepoints, downsampling_factor):
+                    ###### Train data
                     # The Y array for all images in one timepoint
-                    y = train_data[:, channel, timepoint]
-
+                    train_y = train_data[:, channel, timepoint]
                     # Zscore the Y
-                    y = zscore(y)
+                    train_y = zscore(train_y)
 
                     # NOTE: Make sure that this is ran only on training and not testing...
                     lin_reg = LinearRegression()
-                    lin_reg.fit(x, y)
+                    lin_reg.fit(train_x, train_y)
 
-                    predictions = lin_reg.predict(x)
-                    r2 = lin_reg.score(x, y)
-                    beta = lin_reg.coef_
-                    r, _ = pearsonr(y, predictions)
-
-                    train_rs.append(r)
-                    train_r2s.append(r2)
-                    train_betas.append(beta)
+                    # Statistics
+                    train_predictions = lin_reg.predict(train_x)
+                    train_r2 = lin_reg.score(train_x, train_y)
+                    train_beta = lin_reg.coef_
+                    train_r, _ = pearsonr(train_y, train_predictions)
+                    # Save
+                    train_rs.append(train_r)
+                    train_r2s.append(train_r2)
+                    train_betas.append(train_beta)
                     train_lin_regs.append(lin_reg)
+
+
+                    ###### Test data
+                    # The Y array for all images in one timepoint
+                    test_y = test_data[:, channel, timepoint]
+                    # Zscore the Y
+                    test_y = zscore(test_y)
+
+                    # Statistics
+                    test_predictions = lin_reg.predict(test_x)
+                    test_r2 = lin_reg.score(test_x, test_y)
+                    test_r, _ = pearsonr(test_y, test_predictions)
+                    # Save
+                    test_rs.append(test_r)
+                    test_r2s.append(test_r2)
 
                 # Save arrays in the channel directory
                 np.save(os.path.join(channel_dir, "train_rs.npy"), np.array(train_rs))
                 np.save(os.path.join(channel_dir, "train_r2s.npy"), np.array(train_r2s))
                 np.save(os.path.join(channel_dir, "train_betas.npy"), np.array(train_betas))
                 np.save(os.path.join(channel_dir, "train_lin_regs.npy"), np.array(train_lin_regs))
+                np.save(os.path.join(channel_dir, "test_rs.npy"), np.array(test_rs))
+                np.save(os.path.join(channel_dir, "test_r2s.npy"), np.array(test_r2s))
 
                 # Plot and save
                 plot_rs(train_r2s, f'$R^2$', f"TRAIN subject: {sub}, channel: {channel_name}, layer: {layer_name}", downsampling_factor)
                 plt.savefig(os.path.join(channel_dir, "train r2s"))
                 plt.clf()
-                plot_rs(train_rs, "Pearson`s r", f"TRAIN subject: {sub}, channel: {channel_name}, layer: {layer_name}", downsampling_factor)
+                plot_rs(train_rs, "Pearson`s  r", f"TRAIN subject: {sub}, channel: {channel_name}, layer: {layer_name}", downsampling_factor)
                 plt.savefig(os.path.join(channel_dir, "train rs"))
                 plt.clf()
-
-
-            ##################### TEST
-            # Get activations for the test dataset
-            layer_ac_test = all_activations_test[layer_name]
-            test_x = flatten_layer(layer_ac_test)
-
-            # Apply PCA transformation from the train data
-            test_x = pca.transform(test_x)
-
-            # Loop over selected channels
-            for channel in selected_channel_indexes:
-
-                channel_name = channel_order[channel]
-                # Make a new dir for the channel
-                channel_dir = os.path.join(layer_dir, channel_name)
-                os.makedirs(channel_dir, exist_ok=True)
-
-                test_rs = []
-                test_r2s = []
-                test_betas = []
-
-                ######################## Iterate over timepoints
-                #for timepoint in range(n_timepoints):
-                # Select every 4th point, AKA downsample to 256Hz
-                for timepoint in range(0, n_timepoints, downsampling_factor):
-                    # The Y array for all images in one timepoint
-                    y = test_data[:, channel, timepoint]
-
-                    # Zscore the Y
-                    y = zscore(y)
-
-                    # NOTE: Make sure that this is ran only on testing and not testing...
-                    #lin_reg = LinearRegression()
-                    #lin_reg.fit(x, y)
-                    lin_reg = train_lin_regs[int(timepoint / downsampling_factor)]
-
-                    predictions = lin_reg.predict(test_x)
-                    r2 = lin_reg.score(test_x, y)
-                    beta = lin_reg.coef_
-                    r, _ = pearsonr(y, predictions)
-
-                    test_rs.append(r)
-                    test_r2s.append(r2)
-                    test_betas.append(beta)
-
-                # Save arrays in the channel directory
-                np.save(os.path.join(channel_dir, "test_rs.npy"), np.array(test_rs))
-                np.save(os.path.join(channel_dir, "test_r2s.npy"), np.array(test_r2s))
-                np.save(os.path.join(channel_dir, "test_betas.npy"), np.array(test_betas))
 
                 # Plot and save
                 plot_rs(test_r2s, f'$R^2$', f"TEST subject: {sub}, channel: {channel_name}, layer: {layer_name}", downsampling_factor)
                 plt.savefig(os.path.join(channel_dir, "test r2s"))
                 plt.clf()
-                plot_rs(test_rs, "Pearson`s r", f"TEST subject: {sub}, channel: {channel_name}, layer: {layer_name}", downsampling_factor)
+                plot_rs(test_rs, "Pearson`s  r", f"TEST subject: {sub}, channel: {channel_name}, layer: {layer_name}", downsampling_factor)
                 plt.savefig(os.path.join(channel_dir, "test rs"))
                 plt.clf()
 
