@@ -1,4 +1,4 @@
-#%% V2
+#%% V2.1
 
 # imports
 import os
@@ -21,6 +21,7 @@ import pandas as pd
 from OADSDataset import OADSDataset
 from models.resnet_simclr import ResNetSimCLR
 from models.alexnet_simclr import AlexNetSimCLR
+from torchvision.models import alexnet, resnet18
 
 ############################################ Params
 
@@ -42,10 +43,6 @@ batch_size = 32  # 512 # 512
 # TODO: change when running on DAS4
 n_workers = 1
 
-# YO: what is this?
-######################## Set number of output channels of the models (corresponds to number of classes)
-#output_channels = 19
-
 # Output dir for processed data
 output_dir = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\EEG data\outputs"
 
@@ -56,9 +53,10 @@ dataset_root_dir = r"C:\Users\YO\OneDrive - UvA\ARW"
 # dataset_csv_file = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\Practice\cropped_images\png\filenames.csv"
 
 # TODO: save this info
-checkpoint_path = (r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\Model srcs\checkpoints\runs resnet18\Jan29_19-06-56_node436\checkpoint_0200.pth.tar")
-
-model_type = 'resnet18'
+#checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\runs resnet18 6x crop\Jan29_19-06-56_node436\checkpoint_0200.pth.tar"
+checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\from niklas\best_model_08-06-23-115424.pth"
+model_type = 'alexnet'
+is_from_niklas = True  # Is it a non-simclr, supervised checkpoint obtained from Niklas?
 
 out_dim = 128
 
@@ -180,52 +178,114 @@ all_filenames = sorted(set(all_filenames))
 
 ################### Load model
 
-if model_type == 'resnet50':
-    return_nodes = {
-        # node_name: user-specified key for output dict
-        'backbone.layer1.2.relu_2': 'layer1',
-        'backbone.layer2.3.relu_2': 'layer2',
-        'backbone.layer3.5.relu_2': 'layer3',
-        'backbone.layer4.2.relu_2': 'layer4',
-        'backbone.fc.2': 'fc2',
-    }
-    model = ResNetSimCLR('resnet50', out_dim)
+def load_model_nm():
+    """Load Niklas' supervised, non-SimCLR model checkpoints"""
 
-    checkpoint = torch.load(checkpoint_path)
-    model.load_state_dict(checkpoint["state_dict"])
+    # TODO: not sure what values are right
+    output_channels = 21
+    use_rgbedges = False
+    use_cocedges = False
 
-elif model_type == 'resnet18':
-    return_nodes = {
-        # node_name: user-specified key for output dict
-        # 'backbone.layer1.1.relu_1': 'layer1',
-        'backbone.layer2.1.relu_1': 'layer2',
-        'backbone.layer3.1.relu_1': 'layer3',
-        'backbone.layer4.1.relu_1': 'layer4',
-        #'backbone.fc.0': 'fc0',
-        #'backbone.fc.1': 'fc1',
-        'backbone.fc.2': 'fc2', # The final layer
-    }
+    if model_type == 'resnet18':
+        return_nodes = {
+            # node_name: user-specified key for output dict
+            # 'layer1.1.relu_1': 'layer1',
+            'layer2.1.relu_1': 'layer2',
+            'layer3.1.relu_1': 'layer3',
+            'layer4.1.relu_1': 'layer4',
+            # 'fc': 'fc'  # For this PCA 100 is too big...
+            #'flatten': 'feature',
+        }
 
-    model = ResNetSimCLR('resnet18', out_dim)
-    checkpoint = torch.load(checkpoint_path)
-    model.load_state_dict(checkpoint["state_dict"])
+        model = resnet18()
+        model.conv1 = torch.nn.Conv2d(in_channels=3, out_channels=model.conv1.out_channels, kernel_size=(7,7), stride=(2,2), padding=(3,3), bias=False)
+        model.fc = torch.nn.Linear(in_features=512, out_features=output_channels, bias=True)
 
-elif model_type == 'alexnet':
-    return_nodes = {
-        'features.2': 'layer1',
-        'features.5': 'layer2',
-        'features.12': 'layer3',
-        'classifier.5': 'feature',
-    }
+    elif model_type == 'alexnet':
+        return_nodes = {
+            'features.2': 'layer1',
+            'features.5': 'layer2',
+            'features.12': 'layer3',
+            # 'classifier.5': 'feature',
+        }
 
-    model = AlexNetSimCLR(out_dim)
-    model.load_state_dict(torch.load(checkpoint_path, map_location=gpu_name))
+        model = alexnet()
+        model.features[0] = torch.nn.Conv2d(6 if use_rgbedges or use_cocedges else 3, 64, kernel_size=11, stride=4, padding=2)
+        model.classifier[6] = torch.nn.Linear(4096, output_channels, bias=True)
 
+    else:
+        print(f'Model {model_type} not implemented (is_from_niklas is True)')
+        exit(1)
+
+    gpu_name = 'cuda'
+    try:
+        model.load_state_dict(torch.load(checkpoint_path, map_location=gpu_name))
+    except RuntimeError:
+        model = torch.nn.DataParallel(model)
+        model.load_state_dict(torch.load(checkpoint_path, map_location=gpu_name))
+        model = model.module
+
+    model = model.to(device)
+
+    return model, return_nodes
+
+def load_model():
+    """Load a simclr model"""
+
+    if model_type == 'resnet50':
+        return_nodes = {
+            # node_name: user-specified key for output dict
+            'backbone.layer1.2.relu_2': 'layer1',
+            'backbone.layer2.3.relu_2': 'layer2',
+            'backbone.layer3.5.relu_2': 'layer3',
+            'backbone.layer4.2.relu_2': 'layer4',
+            'backbone.fc.2': 'fc2',
+        }
+        model = ResNetSimCLR('resnet50', out_dim)
+
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint["state_dict"])
+
+    elif model_type == 'resnet18':
+        return_nodes = {
+            # node_name: user-specified key for output dict
+            # 'backbone.layer1.1.relu_1': 'layer1',
+            'backbone.layer2.1.relu_1': 'layer2',
+            'backbone.layer3.1.relu_1': 'layer3',
+            'backbone.layer4.1.relu_1': 'layer4',
+            #'backbone.fc.0': 'fc0',
+            #'backbone.fc.1': 'fc1',
+            'backbone.fc.2': 'fc2', # The final layer
+        }
+
+        model = ResNetSimCLR('resnet18', out_dim)
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint["state_dict"])
+
+    elif model_type == 'alexnet':
+        return_nodes = {
+            'features.2': 'layer1',
+            'features.5': 'layer2',
+            'features.12': 'layer3',
+            'classifier.5': 'feature',
+        }
+
+        model = AlexNetSimCLR(out_dim)
+        model.load_state_dict(torch.load(checkpoint_path, map_location=gpu_name))
+
+    else:
+        print(f'Model {model_type} not implemented')
+        exit(1)
+
+    model = model.to(device)
+
+    return model, return_nodes
+
+
+if is_from_niklas:
+    model, return_nodes = load_model_nm()
 else:
-    print(f'Model {model_type} not implemented')
-    exit(1)
-
-model = model.to(device)
+    model, return_nodes = load_model()
 
 
 ######################## Create feature extractor to retrieve above specified activations per layer

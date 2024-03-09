@@ -21,10 +21,9 @@ save_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internsh
 og_height = 3672
 og_width = 5496
 
-# divide to 6 pieces
-parts_h = 2
-parts_w = 3
-
+# divide to 12 pieces
+parts_h = 5
+parts_w = 6
 
 def main():
 

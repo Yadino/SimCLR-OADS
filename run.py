@@ -72,7 +72,7 @@ parser.add_argument('--temperature', default=0.07, type=float,
 parser.add_argument('--n-views', default=2, type=int, metavar='N',
                     help='Number of views for contrastive learning training.')
 parser.add_argument('--gpu-index', default=0, type=int, help='Gpu index.')
-parser.add_argument('--validation-interval', default=1, type=int,
+parser.add_argument('--validation-interval', default=0, type=int,
                     help='How often to perform validation during training')
 
 
@@ -97,7 +97,7 @@ def main():
         num_workers=args.workers, pin_memory=True, drop_last=True)
 
     # Add validation datasets for OADS
-    if args.dataset_name == 'OADS':
+    if args.dataset_name == 'OADS' and args.validation_interval > 0:
         val_dataset = dataset.get_dataset('OADS_val', args.n_views)
         val_loader = torch.utils.data.DataLoader(
             val_dataset, batch_size=args.batch_size, shuffle=True,
