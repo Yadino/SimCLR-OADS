@@ -13,12 +13,9 @@ from torchvision import transforms
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from scipy.stats import pearsonr
-from sklearn.metrics import r2_score
-import tqdm
 from scipy.stats import zscore
-import pandas as pd
 # YO::
-from OADSDataset import OADSDataset
+from datasets.OADSDataset import OADSDataset
 from models.resnet_simclr import ResNetSimCLR
 from models.alexnet_simclr import AlexNetSimCLR
 from torchvision.models import alexnet, resnet18

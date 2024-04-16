@@ -1,5 +1,5 @@
-#classification regression
-#%% V0.1
+# classification regression
+# %% V0.1
 
 # imports
 import os
@@ -18,6 +18,7 @@ from tqdm import tqdm
 from models.resnet_simclr import ResNetSimCLR
 from models.alexnet_simclr import AlexNetSimCLR
 from datasets.SubsetImageFolder import SubsetImageFolder
+from datasets.TextureBiasDataset import TextureBiasDataset
 from torchvision.models import alexnet, resnet18
 
 ############################################ Params
@@ -27,27 +28,30 @@ device = torch.device(gpu_name if torch.cuda.is_available() else 'cpu')
 print(f'Running on device: {device}')
 torch.cuda.empty_cache()
 
-batch_size = 32  # 512
+batch_size = 64  # 512
 
 # TODO: change when running on DAS4
 n_workers = 1
 
 # Output dir for processed data
-output_dir = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\object_class_reg_outputs"
+output_dir = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\texture_reg_outputs"
 
 dataset_root_dir = r"C:\Users\YO\OneDrive - UvA\ML_new"
-#dataset_root_dir = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\Practice\ML_testing"
+texture_dataset_root_dir = r"C:\Users\YO\UvA\Niklas Müller - Cue-Conflict_Stimuli_1.0"
+
 
 # TODO: save this info
-checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\runs resnet18 6x crop\Jan29_19-06-56_node436\checkpoint_0200.pth.tar"
-#checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\from niklas\best_model_05-06-23-164521.pth"
+# checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\runs resnet18 6x crop\Jan29_19-06-56_node436\checkpoint_0200.pth.tar"
+checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\from niklas\best_model_05-06-23-164521.pth"
 model_type = 'resnet18'
-is_from_niklas = False  # Whether it is a non-simclr, supervised checkpoint obtained from Niklas
+is_from_niklas = True  # Whether it is a non-simclr, supervised checkpoint obtained from Niklas
 
 out_dim = 128
 
 # The size of the subset out of the full dataset, in percents (this is to save time and RAM)
 subset_size_percentage = 2
+
+
 ################################ Define util funcs
 
 
@@ -72,12 +76,47 @@ def record_activations(data_loader, model, return_nodes, device):
                 if layer_name not in all_activations:
                     all_activations[layer_name] = {}
 
-                #all_activations[layer_name][batch_idx] = activation_tensor.detach().cpu().numpy()
+                # all_activations[layer_name][batch_idx] = activation_tensor.detach().cpu().numpy()
                 # iterate over the batch
                 for img in activation_tensor.detach().cpu().numpy():
                     all_activations[layer_name][img_idx] = img
                     img_idx += 1
     return all_activations
+
+
+def record_activations_texture(data_loader, model, return_nodes, device):
+    """record_activations() for texture dataset, extract shape and texture info from filenames"""
+
+    model = create_feature_extractor(model, return_nodes)
+    model.eval()  # Set the feature extractor to evaluation mode
+
+    all_activations = {}
+    all_shape_classes = {}
+    all_texture_classes = {}
+
+    # Iterate through the data loader
+    img_idx = 0
+    for batch_idx, [inputs, shape_classes, texture_classes] in enumerate(tqdm(data_loader)):
+        inputs = inputs.to(device)
+        with torch.no_grad():
+            activations = model(inputs)
+
+            for layer_name, activation_tensor in activations.items():
+                if layer_name not in all_activations:
+                    all_activations[layer_name] = {}
+                    all_shape_classes[layer_name] = {}
+                    all_texture_classes[layer_name] = {}
+
+                # all_activations[layer_name][batch_idx] = activation_tensor.detach().cpu().numpy()
+                # iterate over the batch
+                for inner_idx, img in enumerate(activation_tensor.detach().cpu().numpy()):
+                    all_activations[layer_name][img_idx] = img
+                    all_shape_classes[layer_name][img_idx] = shape_classes[inner_idx]
+                    all_texture_classes[layer_name][img_idx] = texture_classes[inner_idx]
+                    img_idx += 1
+
+    return all_activations, all_shape_classes, all_texture_classes
+
 
 def flatten_layer(layer):
     """flatten a layer of a dictionary returned from record_activations"""
@@ -126,11 +165,12 @@ def load_model_nm():
             'layer3.1.relu_1': 'layer3',
             'layer4.1.relu_1': 'layer4',
             # 'fc': 'fc'  # For this PCA 100 is too big...
-            #'flatten': 'feature',
+            # 'flatten': 'feature',
         }
 
         model = resnet18()
-        model.conv1 = torch.nn.Conv2d(in_channels=3, out_channels=model.conv1.out_channels, kernel_size=(7,7), stride=(2,2), padding=(3,3), bias=False)
+        model.conv1 = torch.nn.Conv2d(in_channels=3, out_channels=model.conv1.out_channels, kernel_size=(7, 7),
+                                      stride=(2, 2), padding=(3, 3), bias=False)
         model.fc = torch.nn.Linear(in_features=512, out_features=output_channels, bias=True)
 
     elif model_type == 'alexnet':
@@ -142,24 +182,26 @@ def load_model_nm():
         }
 
         model = alexnet()
-        model.features[0] = torch.nn.Conv2d(6 if use_rgbedges or use_cocedges else 3, 64, kernel_size=11, stride=4, padding=2)
+        model.features[0] = torch.nn.Conv2d(6 if use_rgbedges or use_cocedges else 3, 64, kernel_size=11, stride=4,
+                                            padding=2)
         model.classifier[6] = torch.nn.Linear(4096, output_channels, bias=True)
 
     else:
         print(f'Model {model_type} not implemented (is_from_niklas is True)')
         exit(1)
 
-    #gpu_name = 'cuda'
+    # gpu_name = 'cuda'
     try:
-        model.load_state_dict(torch.load(checkpoint_path))#, map_location=gpu_name))
+        model.load_state_dict(torch.load(checkpoint_path))  # , map_location=gpu_name))
     except RuntimeError:
         model = torch.nn.DataParallel(model)
-        model.load_state_dict(torch.load(checkpoint_path))#, map_location=gpu_name))
+        model.load_state_dict(torch.load(checkpoint_path))  # , map_location=gpu_name))
         model = model.module
 
     model = model.to(device)
 
     return model, return_nodes
+
 
 def load_model():
     """Load a simclr model"""
@@ -185,9 +227,9 @@ def load_model():
             'backbone.layer2.1.relu_1': 'layer2',
             'backbone.layer3.1.relu_1': 'layer3',
             'backbone.layer4.1.relu_1': 'layer4',
-            #'backbone.fc.0': 'fc0',
-            #'backbone.fc.1': 'fc1',
-            'backbone.fc.2': 'fc2', # The final layer
+            # 'backbone.fc.0': 'fc0',
+            # 'backbone.fc.1': 'fc1',
+            'backbone.fc.2': 'fc2',  # The final layer
         }
 
         model = ResNetSimCLR('resnet18', out_dim)
@@ -220,21 +262,24 @@ if is_from_niklas:
 else:
     model, return_nodes = load_model()
 
-
 ######################## Create feature extractor to retrieve above specified activations per layer
 # Normalize values
 mean = [0.3410, 0.3123, 0.2787]
 std = [0.2362, 0.2252, 0.2162]
 
 # Resize values
-desired_height = 400 #50
-desired_width = 400 #50
+desired_height = 400  # 50
+desired_width = 400  # 50
 
 transform_list = [transforms.Resize((desired_height, desired_width)),
                   transforms.ToTensor(),
                   transforms.Normalize(mean, std)]
 transform = transforms.Compose(transform_list)
 
+# Texture bias dataset doesnt need to be resized, it's already 400x400 (also it fails)
+transform_list_tb = [transforms.ToTensor(),
+                     transforms.Normalize(mean, std)]
+transform_tb = transforms.Compose(transform_list_tb)
 
 # %%
 ##################### Loop over all subjects
@@ -244,13 +289,20 @@ def main():
 
     # Get test features - returns a dict with chosen layers, for each layer an array with indices
     #   corresponding to the images presented to a subject
-    print("Extracting features")
+    print("Extracting features for texture bias")
+
+    # Dataset & dataloaders FOR TEXTURE BIAS
+    dataset_tb = TextureBiasDataset(texture_dataset_root_dir, transform=transform_tb)
+    dataloader_tb = torch.utils.data.DataLoader(dataset_tb, batch_size=batch_size, shuffle=False, pin_memory=False)
+    all_activations_tb, all_shape_classes, all_texture_classes = record_activations_texture(dataloader_tb, model, return_nodes, device)
+
+    print("Extracting features for training")
+
     # Dataset & dataloaders
-    #dataset = torchvision.datasets.ImageFolder(root=dataset_root_dir, transform=transform)
+    # dataset = torchvision.datasets.ImageFolder(root=dataset_root_dir, transform=transform)
     dataset = SubsetImageFolder(root=dataset_root_dir, transform=transform, percentage=subset_size_percentage)
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, pin_memory=False)
     all_activations = record_activations(dataloader, model, return_nodes, device)
-
 
     # NOTE: could also loop over images first, then layers
     # Loop over the activations layer by layer
@@ -261,36 +313,47 @@ def main():
 
         print(f"Layer: {layer_name}")
 
+        # Train data is activations from the original object crop DS
         activations_layer = all_activations[layer_name]
-
         # Flatten the activations to create the design matrix
-        X = flatten_layer(list(activations_layer.values()))
-
+        X_train = flatten_layer(list(activations_layer.values()))
         # y is the labels / label indices
-        y = dataset.targets
-
-        # Split to test and train data
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-
+        y_train = dataset.targets
 
         ## PCA
         pca = PCA(n_components=100)  # You can adjust the number of components as needed
         # Fit to training data
         X_train = pca.fit_transform(X_train)
-        # transform test data with PCA
-        X_test = pca.transform(X_test)
 
         # Train SVM classifier
         svm_classifier = svm.LinearSVC()
         svm_classifier.fit(X_train, y_train)
 
-        # Evaluate the classifier
-        y_pred = svm_classifier.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
-        print(f"\tAccuracy: {accuracy}")
+        ## TEST AGAINST TEXTURE BIAS DS
+        # Prepare the data
+        shape_classes = list(all_shape_classes[layer_name].values())
+        texture_classes = list(all_texture_classes[layer_name].values())
 
-        # TODO: what other tests to perform?
+        # Test data is texture bias activations
+        activations_layer_tb = all_activations_tb[layer_name]
+        X_test = flatten_layer(list(activations_layer_tb.values()))
+
+        # y test are the indices
+        shape_class_indices = [dataset.classes.index(class_name) for class_name in shape_classes]
+        texture_class_indices = [dataset.classes.index(class_name) for class_name in texture_classes]
+
+        # transform test data with PCA
+        X_test = pca.transform(X_test)
+
+        # Evaluate the classifier on texture and shape
+        y_pred = svm_classifier.predict(X_test)
+
+        accuracy_shape = accuracy_score(shape_class_indices, y_pred)
+        accuracy_texture = accuracy_score(texture_class_indices, y_pred)
+        print(f"\tAccuracy for shape: {accuracy_shape}")
+        print(f"\tAccuracy for texture: {accuracy_texture}")
+
+        # TODO: confusion matrix
 
         # Save
         classifier_filename = os.path.join(layer_dir, f"{layer_name}_svm_classifier.pkl")
@@ -301,7 +364,7 @@ def main():
         with open(pca_filename, 'wb') as f:
             pickle.dump(pca, f)
         with open(accuracy_filename, "w") as f:
-            f.write(f"{accuracy}")
+            f.write(f"Accuracy for shape: {accuracy_shape}\nAccuracy for texture: {accuracy_texture}")
 
 
 if __name__ == '__main__':

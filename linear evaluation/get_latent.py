@@ -5,7 +5,7 @@ from data_aug.view_generator import ContrastiveLearningViewGenerator
 from models.resnet_simclr import ResNetSimCLR
 import matplotlib.pyplot as plt
 import numpy as np
-from OADSDataset import OADSDataset
+from datasets.OADSDataset import OADSDataset
 
 # cifar10 checkpoint
 #checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\Practice\checkpoints (runs)\Nov19_23-33-24_node404\checkpoint_1000.pth.tar"
@@ -91,12 +91,8 @@ for im in images:
 
 
 # get latents
-from torchvision.models import resnet50
 from torchvision.models.feature_extraction import get_graph_node_names
 from torchvision.models.feature_extraction import create_feature_extractor
-from torchvision.models.detection.mask_rcnn import MaskRCNN
-from torchvision.models.detection.backbone_utils import LastLevelMaxPool
-from torchvision.ops.feature_pyramid_network import FeaturePyramidNetwork
 
 # Printing the available layers
 train_nodes, eval_nodes = get_graph_node_names(model)
