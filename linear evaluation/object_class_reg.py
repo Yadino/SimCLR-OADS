@@ -1,5 +1,5 @@
 #classification regression
-#%% V0.1
+#%% V1.1
 
 # imports
 import os
@@ -14,11 +14,17 @@ from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn import svm
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from models.resnet_simclr import ResNetSimCLR
 from models.alexnet_simclr import AlexNetSimCLR
 from datasets.SubsetImageFolder import SubsetImageFolder
 from torchvision.models import alexnet, resnet18
+import warnings
+from sklearn.exceptions import ConvergenceWarning
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
 ############################################ Params
 
@@ -39,10 +45,10 @@ dataset_root_dir = r"C:\Users\YO\OneDrive - UvA\ML_new"
 #dataset_root_dir = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\Practice\ML_testing"
 
 # TODO: save this info
-checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\runs resnet18 6x crop\Jan29_19-06-56_node436\checkpoint_0200.pth.tar"
-#checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\from niklas\best_model_05-06-23-164521.pth"
+#checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\runs resnet18 6x crop\Jan29_19-06-56_node436\checkpoint_0200.pth.tar"
+checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\from niklas\best_model_05-06-23-164521.pth"
 model_type = 'resnet18'
-is_from_niklas = False  # Whether it is a non-simclr, supervised checkpoint obtained from Niklas
+is_from_niklas = True  # Whether it is a non-simclr, supervised checkpoint obtained from Niklas
 
 out_dim = 128
 
@@ -272,8 +278,6 @@ def main():
         # Split to test and train data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-
-
         ## PCA
         pca = PCA(n_components=100)  # You can adjust the number of components as needed
         # Fit to training data
@@ -290,7 +294,14 @@ def main():
         accuracy = accuracy_score(y_test, y_pred)
         print(f"\tAccuracy: {accuracy}")
 
-        # TODO: what other tests to perform?
+        # Confusion matrix
+        #confusion_matrix(y_test, y_pred)
+
+        # Visualize confusion matrix
+        disp = ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
+        disp.figure_.suptitle(f"Confusion Matrix {layer_name}")
+        print(f"Confusion matrix:\n{disp.confusion_matrix}")
+        plt.show()
 
         # Save
         classifier_filename = os.path.join(layer_dir, f"{layer_name}_svm_classifier.pkl")

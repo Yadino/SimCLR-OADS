@@ -1,12 +1,12 @@
 import os
 from torchvision import datasets, transforms
-import random
 from torch.utils.data import Dataset, DataLoader
 from skimage import io
 from PIL import Image
+import re
 
-class TextureBiasDataset(Dataset):
-    def __init__(self, root_dir=r"C:\Users\YO\UvA\Niklas Müller - Cue-Conflict_Stimuli_1.0", transform=None, percentage=100):
+class TextureBiasImagenetDataset(Dataset):
+    def __init__(self, root_dir=r"C:\Users\YO\UvA\rgeirhos_github_cue_conflict_512\all", transform=None):
         self.root_dir = root_dir
         self.transform = transform
         self.file_names = []
@@ -17,21 +17,13 @@ class TextureBiasDataset(Dataset):
         for file_name in os.listdir(root_dir):
             if file_name.endswith('.png'):
                 self.file_names.append(os.path.join(root_dir, file_name))
-                self.shape_classes.append(file_name.split('_')[0])
-                self.texture_classes.append(file_name.split('-')[1].split('_')[0])
-
-        # Calculate the number of samples to select based on the percentage
-        num_samples = len(self.file_names)
-        num_samples_to_select = int((percentage / 100) * num_samples)
-
-        # Randomly select samples
-        self.selected_indices = random.sample(range(num_samples), num_samples_to_select)
+                self.shape_classes.append(re.sub(r'\d+', '', file_name.split('-')[0]))
+                self.texture_classes.append(re.sub(r'\d+|\..*', '', file_name.split('-')[1]))
 
     def __len__(self):
-        return len(self.selected_indices)
+        return len(self.file_names)
 
     def __getitem__(self, idx):
-        idx = self.selected_indices[idx]
         image_path = self.file_names[idx]
         shape_class = self.shape_classes[idx]
         texture_class = self.texture_classes[idx]
@@ -39,11 +31,13 @@ class TextureBiasDataset(Dataset):
         # Load the image
         image = io.imread(image_path)
 
+        #with Image.open(image_path) as img:
+        #    image = img.convert('RGB')
+
         if self.transform:
             image = self.transform(image)
 
         return image, shape_class, texture_class
-
 
 
 #test

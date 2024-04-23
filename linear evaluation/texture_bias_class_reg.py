@@ -1,5 +1,5 @@
-# classification regression
-# %% V0.1
+# classification regression for texture bias
+# %% V1.0
 
 # imports
 import os
@@ -11,7 +11,6 @@ from torch.utils.data import DataLoader
 from torchvision.models.feature_extraction import create_feature_extractor
 from torchvision import transforms
 from sklearn.decomposition import PCA
-from sklearn.model_selection import train_test_split
 from sklearn import svm
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
@@ -19,9 +18,18 @@ from models.resnet_simclr import ResNetSimCLR
 from models.alexnet_simclr import AlexNetSimCLR
 from datasets.SubsetImageFolder import SubsetImageFolder
 from datasets.TextureBiasDataset import TextureBiasDataset
+from datasets.TextureBiasImagenetDataset import TextureBiasImagenetDataset
 from torchvision.models import alexnet, resnet18
+import warnings
+from sklearn.exceptions import ConvergenceWarning
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
 ############################################ Params
+
+# how many times to run it
+RUN_COUNT = 4
+
 
 gpu_name = 'cuda:0'
 device = torch.device(gpu_name if torch.cuda.is_available() else 'cpu')
@@ -39,12 +47,17 @@ output_dir = r"D:\01 Files\04 University\00 Internships and theses\2. AI interns
 dataset_root_dir = r"C:\Users\YO\OneDrive - UvA\ML_new"
 texture_dataset_root_dir = r"C:\Users\YO\UvA\Niklas Müller - Cue-Conflict_Stimuli_1.0"
 
+IMAGENET_TEST = False
 
 # TODO: save this info
-# checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\runs resnet18 6x crop\Jan29_19-06-56_node436\checkpoint_0200.pth.tar"
-checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\from niklas\best_model_05-06-23-164521.pth"
+#checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\runs resnet18 6x crop\Jan29_19-06-56_node436\checkpoint_0200.pth.tar"
+#checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\from niklas\best_model_05-06-23-164521.pth"
+#checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\runs resnet18 30x crop\Apr15_23-58-43_node414\checkpoint_0050.pth.tar"
+#checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\control\checkpoint_0100_STL10.pth.tar"
+checkpoint_path = "untrained resnet18"
+
 model_type = 'resnet18'
-is_from_niklas = True  # Whether it is a non-simclr, supervised checkpoint obtained from Niklas
+is_from_niklas = False  # Whether it is a non-simclr, supervised checkpoint obtained from Niklas
 
 out_dim = 128
 
@@ -160,7 +173,7 @@ def load_model_nm():
     if model_type == 'resnet18':
         return_nodes = {
             # node_name: user-specified key for output dict
-            # 'layer1.1.relu_1': 'layer1',
+            'layer1.1.relu_1': 'layer1',
             'layer2.1.relu_1': 'layer2',
             'layer3.1.relu_1': 'layer3',
             'layer4.1.relu_1': 'layer4',
@@ -223,7 +236,7 @@ def load_model():
     elif model_type == 'resnet18':
         return_nodes = {
             # node_name: user-specified key for output dict
-            # 'backbone.layer1.1.relu_1': 'layer1',
+            'backbone.layer1.1.relu_1': 'layer1',
             'backbone.layer2.1.relu_1': 'layer2',
             'backbone.layer3.1.relu_1': 'layer3',
             'backbone.layer4.1.relu_1': 'layer4',
@@ -233,8 +246,9 @@ def load_model():
         }
 
         model = ResNetSimCLR('resnet18', out_dim)
-        checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint["state_dict"])
+        #TODO: remove, its just to run an empty one
+        #checkpoint = torch.load(checkpoint_path)
+        #model.load_state_dict(checkpoint["state_dict"])
 
     elif model_type == 'alexnet':
         return_nodes = {
@@ -276,25 +290,41 @@ transform_list = [transforms.Resize((desired_height, desired_width)),
                   transforms.Normalize(mean, std)]
 transform = transforms.Compose(transform_list)
 
-# Texture bias dataset doesnt need to be resized, it's already 400x400 (also it fails)
-transform_list_tb = [transforms.ToTensor(),
-                     transforms.Normalize(mean, std)]
-transform_tb = transforms.Compose(transform_list_tb)
-
 # %%
 ##################### Loop over all subjects
-def main():
+def run():
     # Create an output dir for current run
     datetime_dir = creat_output_dir(output_dir)
 
     # Get test features - returns a dict with chosen layers, for each layer an array with indices
     #   corresponding to the images presented to a subject
+    print(f"Using checkpoint: {checkpoint_path}")
     print("Extracting features for texture bias")
 
     # Dataset & dataloaders FOR TEXTURE BIAS
-    dataset_tb = TextureBiasDataset(texture_dataset_root_dir, transform=transform_tb)
-    dataloader_tb = torch.utils.data.DataLoader(dataset_tb, batch_size=batch_size, shuffle=False, pin_memory=False)
-    all_activations_tb, all_shape_classes, all_texture_classes = record_activations_texture(dataloader_tb, model, return_nodes, device)
+    if IMAGENET_TEST:
+
+        print("============TESTING ON IMAGENET============")
+        # Override transform
+        transform_list_tb = [transforms.ToTensor(),
+                             transforms.Resize((400, 400)),
+                             transforms.Normalize(mean, std)]
+        transform_tb = transforms.Compose(transform_list_tb)
+
+
+        dataset_tb = TextureBiasImagenetDataset(transform=transform_tb)
+        dataloader_tb = torch.utils.data.DataLoader(dataset_tb, batch_size=batch_size, shuffle=False, pin_memory=False)
+        all_activations_tb, all_shape_classes, all_texture_classes = record_activations_texture(dataloader_tb, model, return_nodes, device)
+
+    else:
+        # Texture bias dataset doesnt need to be resized, it's already 400x400 (also it fails)
+        transform_list_tb = [transforms.ToTensor(),
+                             transforms.Normalize(mean, std)]
+        transform_tb = transforms.Compose(transform_list_tb)
+
+        dataset_tb = TextureBiasDataset(texture_dataset_root_dir, transform=transform_tb, percentage=25)
+        dataloader_tb = torch.utils.data.DataLoader(dataset_tb, batch_size=batch_size, shuffle=False, pin_memory=False)
+        all_activations_tb, all_shape_classes, all_texture_classes = record_activations_texture(dataloader_tb, model, return_nodes, device)
 
     print("Extracting features for training")
 
@@ -311,7 +341,7 @@ def main():
         layer_dir = os.path.join(datetime_dir, layer_name)
         os.makedirs(layer_dir, exist_ok=True)
 
-        print(f"Layer: {layer_name}")
+        #print(f"Layer: {layer_name}")
 
         # Train data is activations from the original object crop DS
         activations_layer = all_activations[layer_name]
@@ -325,8 +355,13 @@ def main():
         # Fit to training data
         X_train = pca.fit_transform(X_train)
 
-        # Train SVM classifier
+        # SVM classifier
         svm_classifier = svm.LinearSVC()
+
+        # TODO: revert if full class probability is needed
+        #svm_classifier = svm.SVC(probability=True)
+
+        # Train
         svm_classifier.fit(X_train, y_train)
 
         ## TEST AGAINST TEXTURE BIAS DS
@@ -339,8 +374,18 @@ def main():
         X_test = flatten_layer(list(activations_layer_tb.values()))
 
         # y test are the indices
-        shape_class_indices = [dataset.classes.index(class_name) for class_name in shape_classes]
-        texture_class_indices = [dataset.classes.index(class_name) for class_name in texture_classes]
+
+        if IMAGENET_TEST:
+            # For the imagenet dataset use these classes
+            ds_classes = ["airplane", "bear", "bicycle", "bird", "boat", "bottle", "car", "cat", "chair",
+                                "clock", "dog", "elephant", "keyboard", "knife", "oven", "truck"]
+        else:
+            # For our cue conflict just use the classes from the object crop dataset (same classes)
+            ds_classes = dataset.classes
+
+
+        shape_class_indices = [ds_classes.index(class_name) for class_name in shape_classes]
+        texture_class_indices = [ds_classes.index(class_name) for class_name in texture_classes]
 
         # transform test data with PCA
         X_test = pca.transform(X_test)
@@ -350,8 +395,19 @@ def main():
 
         accuracy_shape = accuracy_score(shape_class_indices, y_pred)
         accuracy_texture = accuracy_score(texture_class_indices, y_pred)
-        print(f"\tAccuracy for shape: {accuracy_shape}")
-        print(f"\tAccuracy for texture: {accuracy_texture}")
+        overall_correct = accuracy_shape + accuracy_texture  # Guesses that are "correct" for either of the two
+        shape_bias = accuracy_shape / (accuracy_shape + accuracy_texture)
+        texture_bias = 1 - shape_bias
+
+        result_str = (f"\tAccuracy for shape: {accuracy_shape}"
+                      f"\n\tAccuracy for texture: {accuracy_texture}"
+                      f"\n\tOverall 'correct' guesses: {overall_correct*100}%"
+                      f"\n\tTexture bias: {texture_bias*100}%")
+
+        csv_str_header = "checkpoint, layer, accuracy_shape, accuracy_texture, overall_correct, texture_bias, shape_bias"
+        csv_str = f"{checkpoint_path}, {layer_name}, {accuracy_shape*100}, {accuracy_texture*100}, {overall_correct*100}, {texture_bias*100}, {shape_bias*100}"
+
+        print(csv_str)
 
         # TODO: confusion matrix
 
@@ -364,7 +420,21 @@ def main():
         with open(pca_filename, 'wb') as f:
             pickle.dump(pca, f)
         with open(accuracy_filename, "w") as f:
-            f.write(f"Accuracy for shape: {accuracy_shape}\nAccuracy for texture: {accuracy_texture}")
+            f.write(result_str)
+
+
+    # Delete heavy params
+    if RUN_COUNT > 1:
+        del all_activations, all_activations_tb, activations_layer, activations_layer_tb,
+        del dataset_tb, dataset, dataloader, dataloader_tb
+        del svm_classifier, pca
+
+
+def main():
+    for _ in range(RUN_COUNT):
+        run()
+
+
 
 
 if __name__ == '__main__':
