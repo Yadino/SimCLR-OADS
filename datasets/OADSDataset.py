@@ -3,7 +3,8 @@ import torch
 from torch.utils.data import Dataset
 import pandas as pd
 from skimage import io
-
+import torchvision.transforms as transforms
+import matplotlib.pyplot as plt
 
 class OADSDataset(Dataset):
 
@@ -57,4 +58,23 @@ class OADSDataset(Dataset):
         if self.transform:
             image = self.transform(image)
 
+        #self.__show_image__(image)
+
         return image
+
+    def __show_image__(self, image):
+        """
+        To show a tensor image in order to see how it looks after transforms.
+        For testing.
+        """
+        # Convert tensor back to PIL Image
+        image = image.numpy().transpose(1, 2, 0)  # PIL images have channel last
+        mean = [0.3410, 0.3123, 0.2787]
+        std = [0.2362, 0.2252, 0.2162]
+        image = (image * std + mean).clip(0, 1)
+        #image = transforms.ToPILImage()(image)
+
+        # Display the image
+        plt.imshow(image)
+        plt.axis('off')
+        plt.show()

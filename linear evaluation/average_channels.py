@@ -8,6 +8,7 @@ def create_avr_channels(checkpoint_dir):
         subject_dir = os.path.join(checkpoint_dir, subject)
         if os.path.isdir(subject_dir):
             for layer in os.listdir(subject_dir):
+                print(layer)
                 layer_dir = os.path.join(subject_dir, layer)
                 if os.path.isdir(layer_dir):
                     avr_dir = os.path.join(layer_dir, "AVR")
@@ -37,10 +38,10 @@ def create_avr_channels(checkpoint_dir):
                         np.save(os.path.join(avr_dir, "test_r2s.npy"), avr_test_r2s)
 
 
-output_dir_base = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\EEG data\outputs"
-run_dirs = ["2024-02-16_15-54-47 - resnet18 x6 ch200", "2024-03-16_11-17-50_RESNET18_30x_ch40", "2024-03-02_20-37-46_UNTRAINED_SIMclr_RESNET18", "2024-03-16_14-51-48 RESNET50 x30 ch20"]
+output_dir_base = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\EEG data\linreg final outputs"
+run_dirs = ["OADS", "OADSx30", "OADSx6", "STL10", "Supervised ResNet18 + OADS OC", "Untrained"]
 
 for run_dir in run_dirs:
     checkpoint_dir = os.path.join(output_dir_base, run_dir)
     create_avr_channels(checkpoint_dir)
-
+    print(run_dir)

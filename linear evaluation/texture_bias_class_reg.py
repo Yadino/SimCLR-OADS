@@ -1,5 +1,5 @@
 # classification regression for texture bias
-# %% V1.0
+# %% V2.0
 
 # imports
 import os
@@ -28,7 +28,7 @@ warnings.filterwarnings("ignore", category=ConvergenceWarning)
 ############################################ Params
 
 # how many times to run it
-RUN_COUNT = 4
+RUN_COUNT = 5
 
 
 gpu_name = 'cuda:0'
@@ -47,15 +47,19 @@ output_dir = r"D:\01 Files\04 University\00 Internships and theses\2. AI interns
 dataset_root_dir = r"C:\Users\YO\OneDrive - UvA\ML_new"
 texture_dataset_root_dir = r"C:\Users\YO\UvA\Niklas Müller - Cue-Conflict_Stimuli_1.0"
 
-IMAGENET_TEST = False
+dataset_root_dir_imagenet16 = r"C:\Users\YO\UvA\imagenet-16"
+#texture_dataset_root_dir_imagenet16 = r"C:\Users\YO\UvA\imagenet-16_cue_conflict_512\all"
+
+IMAGENET_TEST = True
 
 # TODO: save this info
 #checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\runs resnet18 6x crop\Jan29_19-06-56_node436\checkpoint_0200.pth.tar"
 #checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\from niklas\best_model_05-06-23-164521.pth"
 #checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\runs resnet18 30x crop\Apr15_23-58-43_node414\checkpoint_0050.pth.tar"
-#checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\control\checkpoint_0100_STL10.pth.tar"
-checkpoint_path = "untrained resnet18"
-
+checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\control\checkpoint_0100_STL10.pth.tar"
+#checkpoint_path = "untrained resnet18"
+#checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\runs resnet18 6x crop\Jan24_16-56-01_node436\resnet18_x6_ch100_best.pth.tar"
+#checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\resnet18 OG OADS\Apr11_18-52-11_node404\checkpoint_0300.pth.tar"
 model_type = 'resnet18'
 is_from_niklas = False  # Whether it is a non-simclr, supervised checkpoint obtained from Niklas
 
@@ -76,6 +80,7 @@ def record_activations(data_loader, model, return_nodes, device):
     model.eval()  # Set the feature extractor to evaluation mode
 
     all_activations = {}
+    all_classes = {}
 
     # Iterate through the data loader
     img_idx = 0
@@ -88,17 +93,19 @@ def record_activations(data_loader, model, return_nodes, device):
             for layer_name, activation_tensor in activations.items():
                 if layer_name not in all_activations:
                     all_activations[layer_name] = {}
+                    all_classes[layer_name] = {}
 
                 # all_activations[layer_name][batch_idx] = activation_tensor.detach().cpu().numpy()
                 # iterate over the batch
-                for img in activation_tensor.detach().cpu().numpy():
+                for inner_idx, img in enumerate(activation_tensor.detach().cpu().numpy()):
                     all_activations[layer_name][img_idx] = img
+                    all_classes[layer_name][img_idx] = labels[inner_idx].item()
                     img_idx += 1
-    return all_activations
+    return all_activations, all_classes
 
 
-def record_activations_texture(data_loader, model, return_nodes, device):
-    """record_activations() for texture dataset, extract shape and texture info from filenames"""
+def record_activations_cue_conflict(data_loader, model, return_nodes, device):
+    """record_activations() for cue conflict / texture dataset, extract shape and texture info from filenames"""
 
     model = create_feature_extractor(model, return_nodes)
     model.eval()  # Set the feature extractor to evaluation mode
@@ -246,9 +253,8 @@ def load_model():
         }
 
         model = ResNetSimCLR('resnet18', out_dim)
-        #TODO: remove, its just to run an empty one
-        #checkpoint = torch.load(checkpoint_path)
-        #model.load_state_dict(checkpoint["state_dict"])
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint["state_dict"])
 
     elif model_type == 'alexnet':
         return_nodes = {
@@ -301,7 +307,7 @@ def run():
     print(f"Using checkpoint: {checkpoint_path}")
     print("Extracting features for texture bias")
 
-    # Dataset & dataloaders FOR TEXTURE BIAS
+    # Dataset & dataloaders FOR CUE CONFLICT
     if IMAGENET_TEST:
 
         print("============TESTING ON IMAGENET============")
@@ -314,7 +320,7 @@ def run():
 
         dataset_tb = TextureBiasImagenetDataset(transform=transform_tb)
         dataloader_tb = torch.utils.data.DataLoader(dataset_tb, batch_size=batch_size, shuffle=False, pin_memory=False)
-        all_activations_tb, all_shape_classes, all_texture_classes = record_activations_texture(dataloader_tb, model, return_nodes, device)
+        all_activations_tb, all_shape_classes, all_texture_classes = record_activations_cue_conflict(dataloader_tb, model, return_nodes, device)
 
     else:
         # Texture bias dataset doesnt need to be resized, it's already 400x400 (also it fails)
@@ -323,16 +329,23 @@ def run():
         transform_tb = transforms.Compose(transform_list_tb)
 
         dataset_tb = TextureBiasDataset(texture_dataset_root_dir, transform=transform_tb, percentage=25)
-        dataloader_tb = torch.utils.data.DataLoader(dataset_tb, batch_size=batch_size, shuffle=False, pin_memory=False)
-        all_activations_tb, all_shape_classes, all_texture_classes = record_activations_texture(dataloader_tb, model, return_nodes, device)
+        dataloader_tb = torch.utils.data.DataLoader(dataset_tb, batch_size=batch_size, shuffle=True, pin_memory=False)
+        all_activations_tb, all_shape_classes, all_texture_classes = record_activations_cue_conflict(dataloader_tb, model, return_nodes, device)
 
     print("Extracting features for training")
 
-    # Dataset & dataloaders
-    # dataset = torchvision.datasets.ImageFolder(root=dataset_root_dir, transform=transform)
-    dataset = SubsetImageFolder(root=dataset_root_dir, transform=transform, percentage=subset_size_percentage)
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, pin_memory=False)
-    all_activations = record_activations(dataloader, model, return_nodes, device)
+    # Normal datasets for training
+    if IMAGENET_TEST:
+        # Dataset & dataloaders ImageNet-16
+        dataset = SubsetImageFolder(root=dataset_root_dir_imagenet16, transform=transform, percentage=100)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, pin_memory=False)
+        all_activations, all_training_classes = record_activations(dataloader, model, return_nodes, device)
+    else:
+        # Dataset & dataloaders
+        # dataset = torchvision.datasets.ImageFolder(root=dataset_root_dir, transform=transform)
+        dataset = SubsetImageFolder(root=dataset_root_dir, transform=transform, percentage=subset_size_percentage)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, pin_memory=False)
+        all_activations, all_training_classes = record_activations(dataloader, model, return_nodes, device)
 
     # NOTE: could also loop over images first, then layers
     # Loop over the activations layer by layer
@@ -348,7 +361,8 @@ def run():
         # Flatten the activations to create the design matrix
         X_train = flatten_layer(list(activations_layer.values()))
         # y is the labels / label indices
-        y_train = dataset.targets
+        #y_train = dataset.targets
+        y_train = list(all_training_classes[layer_name].values())
 
         ## PCA
         pca = PCA(n_components=100)  # You can adjust the number of components as needed
@@ -374,15 +388,17 @@ def run():
         X_test = flatten_layer(list(activations_layer_tb.values()))
 
         # y test are the indices
+        ds_classes = dataset.classes
 
-        if IMAGENET_TEST:
-            # For the imagenet dataset use these classes
-            ds_classes = ["airplane", "bear", "bicycle", "bird", "boat", "bottle", "car", "cat", "chair",
-                                "clock", "dog", "elephant", "keyboard", "knife", "oven", "truck"]
-        else:
-            # For our cue conflict just use the classes from the object crop dataset (same classes)
-            ds_classes = dataset.classes
 
+        #if IMAGENET_TEST:
+        #    # For the imagenet dataset use these classes
+        #    ds_classes = ["airplane", "bear", "bicycle", "bird", "boat", "bottle", "car", "cat", "chair",
+        #                        "clock", "dog", "elephant", "keyboard", "knife", "oven", "truck"]
+        #    # TODO: redundant now but it works so
+        #else:
+        #    # For our cue conflict just use the classes from the object crop dataset (same classes)
+        #    ds_classes = dataset.classes
 
         shape_class_indices = [ds_classes.index(class_name) for class_name in shape_classes]
         texture_class_indices = [ds_classes.index(class_name) for class_name in texture_classes]

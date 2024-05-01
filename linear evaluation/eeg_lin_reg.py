@@ -292,6 +292,8 @@ std = [0.2362, 0.2252, 0.2162]
 
 #feature_extractor = create_feature_extractor(model, return_nodes=return_nodes)
 
+# TODO: NOTE! resizing here to 400 now
+#transform_list = [transforms.ToTensor(), transforms.Resize((400, 400)), transforms.Normalize(mean, std)]
 transform_list = [transforms.ToTensor(), transforms.Normalize(mean, std)]
 transform = transforms.Compose(transform_list)
 
@@ -301,6 +303,10 @@ transform = transforms.Compose(transform_list)
 def main():
     # Create an output dir for current run
     datetime_dir = creat_output_dir(output_dir)
+
+    # Save the path
+    with open(os.path.join(datetime_dir, "checkpoint_path.txt"), "w") as file:
+        file.write(checkpoint_path)
 
     for sub in subjects:
         # Make dir
@@ -434,6 +440,7 @@ def main():
                 np.save(os.path.join(channel_dir, "test_rs.npy"), np.array(test_rs))
                 np.save(os.path.join(channel_dir, "test_r2s.npy"), np.array(test_r2s))
 
+                """
                 # Plot and save
                 plot_rs(train_r2s, f'$R^2$', f"TRAIN subject: {sub}, channel: {channel_name}, layer: {layer_name}", downsampling_factor)
                 plt.savefig(os.path.join(channel_dir, "train r2s"))
@@ -449,6 +456,7 @@ def main():
                 plot_rs(test_rs, "Pearson`s  r", f"TEST subject: {sub}, channel: {channel_name}, layer: {layer_name}", downsampling_factor)
                 plt.savefig(os.path.join(channel_dir, "test rs"))
                 plt.clf()
+                """
 
 
 if __name__ == '__main__':

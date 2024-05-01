@@ -4,9 +4,11 @@ from torch.utils.data import Dataset, DataLoader
 from skimage import io
 from PIL import Image
 import re
+import torchvision.transforms as transforms
+import matplotlib.pyplot as plt
 
 class TextureBiasImagenetDataset(Dataset):
-    def __init__(self, root_dir=r"C:\Users\YO\UvA\rgeirhos_github_cue_conflict_512\all", transform=None):
+    def __init__(self, root_dir=r"C:\Users\YO\UvA\imagenet-16_cue_conflict_512\all", transform=None):
         self.root_dir = root_dir
         self.transform = transform
         self.file_names = []
@@ -37,7 +39,26 @@ class TextureBiasImagenetDataset(Dataset):
         if self.transform:
             image = self.transform(image)
 
+        #self.__show_image__(image)
+
         return image, shape_class, texture_class
+
+    def __show_image__(self, image):
+        """
+        To show a tensor image in order to see how it looks after transforms.
+        For testing.
+        """
+        # Convert tensor back to PIL Image
+        image = image.numpy().transpose(1, 2, 0)  # PIL images have channel last
+        mean = [0.3410, 0.3123, 0.2787]
+        std = [0.2362, 0.2252, 0.2162]
+        image = (image * std + mean).clip(0, 1)
+        #image = transforms.ToPILImage()(image)
+
+        # Display the image
+        plt.imshow(image)
+        plt.axis('off')
+        plt.show()
 
 
 #test
