@@ -8,7 +8,6 @@ def create_avr_channels(checkpoint_dir):
         subject_dir = os.path.join(checkpoint_dir, subject)
         if os.path.isdir(subject_dir):
             for layer in os.listdir(subject_dir):
-                print(layer)
                 layer_dir = os.path.join(subject_dir, layer)
                 if os.path.isdir(layer_dir):
                     avr_dir = os.path.join(layer_dir, "AVR")
@@ -42,6 +41,6 @@ output_dir_base = r"D:\01 Files\04 University\00 Internships and theses\2. AI in
 run_dirs = ["OADS", "OADSx30", "OADSx6", "STL10", "Supervised ResNet18 + OADS OC", "Untrained"]
 
 for run_dir in run_dirs:
+    print(run_dir)
     checkpoint_dir = os.path.join(output_dir_base, run_dir)
     create_avr_channels(checkpoint_dir)
-    print(run_dir)

@@ -51,8 +51,8 @@ dataset_root_dir = r"C:\Users\YO\OneDrive - UvA\ARW"
 
 # TODO: save this info
 #checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\runs resnet18 6x crop\Jan29_19-06-56_node436\checkpoint_0200.pth.tar"
-checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\from niklas\best_model_08-06-23-115424.pth"
-model_type = 'alexnet'
+checkpoint_path = r"D:\01 Files\04 University\00 Internships and theses\2. AI internship\checkpoints\from niklas\best_model_05-06-23-164521.pth"
+model_type = 'resnet18'
 is_from_niklas = True  # Is it a non-simclr, supervised checkpoint obtained from Niklas?
 
 out_dim = 128
@@ -61,7 +61,8 @@ out_dim = 128
 channel_order = ['Fp1', 'AF7', 'AF3', 'F1', 'F3', 'F5', 'F7', 'FT7', 'FC5', 'FC3', 'FC1', 'C1', 'C3', 'C5', 'T7', 'TP7', 'CP5', 'CP3', 'CP1', 'P1', 'P3', 'P5', 'P7', 'P9', 'PO7', 'PO3', 'O1', 'Iz', 'Oz', 'POz', 'Pz', 'CPz', 'Fpz', 'Fp2', 'AF8', 'AF4', 'AFz', 'Fz', 'F2', 'F4', 'F6', 'F8', 'FT8', 'FC6', 'FC4', 'FC2', 'FCz', 'Cz', 'C2', 'C4', 'C6', 'T8', 'TP8', 'CP6', 'CP4', 'CP2', 'P2', 'P4', 'P6', 'P8', 'P10', 'PO8', 'PO4', 'O2', 'left', 'right', 'above', 'below']
 
 # A subset of channels that are visual system related
-visual_channel_names = ['O1', 'O2', 'Oz', 'Iz', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'PO3', 'PO7', 'POz', 'PO4', 'PO8']
+#visual_channel_names = ['O1', 'O2', 'Oz', 'Iz', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'PO3', 'PO7', 'POz', 'PO4', 'PO8']
+visual_channel_names = ['Pz'] # run for this one only
 ################################ Define util funcs
 
 # Get indexes of the selected channels
@@ -186,10 +187,10 @@ def load_model_nm():
     if model_type == 'resnet18':
         return_nodes = {
             # node_name: user-specified key for output dict
-            # 'layer1.1.relu_1': 'layer1',
-            'layer2.1.relu_1': 'layer2',
-            'layer3.1.relu_1': 'layer3',
-            'layer4.1.relu_1': 'layer4',
+            'layer1.1.relu_1': 'layer1',
+            #'layer2.1.relu_1': 'layer2',
+            #'layer3.1.relu_1': 'layer3',
+            #'layer4.1.relu_1': 'layer4',
             # 'fc': 'fc'  # For this PCA 100 is too big...
             #'flatten': 'feature',
         }
