@@ -1,4 +1,4 @@
-# PyTorch SimCLR: A Simple Framework for Contrastive Learning of Visual Representations
+# PyTorch SimCLR + OADS
 
 Forked from https://github.com/sthalles/SimCLR and adapted for OADS
 
