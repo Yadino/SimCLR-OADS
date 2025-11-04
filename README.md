@@ -2,11 +2,16 @@
 
 Forked from https://github.com/sthalles/SimCLR and adapted for OADS
 
+Features:
+* Linear Regression model to predict EEG ERPs over the SimCLR representations.
+* Analysis and evalution pipelines including classifications and multiple datasets.
+* OADS dataset and dataloader.
+
 Other improvements:
-* OADS dataset and dataloader 
-* Checkpoint loading
-* Feature activation extration and plotting
-* Minor bugfix
+* Checkpoint loading.
+* Feature activation extration and plotting.
+* Hyperparameter adaptation.
+* Bugfixes over the original repository.
 
 
 ![Image of SimCLR Arch](https://sthalles.github.io/assets/contrastive-self-supervised/cover.png)
